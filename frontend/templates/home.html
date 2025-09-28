@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio - GuateRiegos 2.0{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="jumbotron bg-success text-white p-5 rounded mb-4">
+            <h1 class="display-4"><i class="fas fa-seedling"></i> GuateRiegos 2.0</h1>
+            <p class="lead">Sistema Inteligente de Optimización de Riego con Drones Automatizados</p>
+            <hr class="my-4" style="border-color: rgba(255,255,255,0.3);">
+            <p>Simula, optimiza y analiza planes de riego para invernaderos con tecnología de vanguardia.</p>
+        </div>
+
+        {% if has_config %}
+            <div class="alert alert-success">
+                <h5><i class="fas fa-check-circle"></i> Sistema Configurado y Listo</h5>
+                <p class="mb-2">El sistema ha cargado la configuración correctamente.</p>
+                {% if stats %}
+                    <p class="mb-1"><strong>Simulaciones ejecutadas:</strong> {{ stats.total_simulations }}</p>
+                    {% if stats.total_simulations > 0 %}
+                        <p class="mb-1"><strong>Tiempo promedio:</strong> {{ "%.1f"|format(stats.average_time) }} segundos</p>
+                        <p class="mb-1"><strong>Total agua utilizada:</strong> {{ stats.total_water }} litros</p>
+                        <p class="mb-0"><strong>Total fertilizante:</strong> {{ stats.total_fertilizer }} gramos</p>
+                    {% endif %}
+                {% endif %}
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <a href="{{ url_for('list_greenhouses') }}" class="btn btn-primary btn-lg w-100">
+                        <i class="fas fa-warehouse"></i> Gestionar Invernaderos
+                    </a>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <a href="{{ url_for('simulate_all_plans') }}" class="btn btn-success btn-lg w-100">
+                        <i class="fas fa-play"></i> Simular Todos los Planes
+                    </a>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <a href="{{ url_for('generate_output_xml') }}" class="btn btn-info btn-lg w-100">
+                        <i class="fas fa-download"></i> Descargar XML Salida
+                    </a>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <a href="{{ url_for('generate_all_reports') }}" class="btn btn-warning btn-lg w-100">
+                        <i class="fas fa-file-alt"></i> Generar Todos los Reportes
+                    </a>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-warning">
+                <h5><i class="fas fa-exclamation-triangle"></i> Configuración Requerida</h5>
+                <p>Para comenzar a utilizar el sistema, debe cargar un archivo XML con la configuración de invernaderos y drones.</p>
+                <a href="{{ url_for('upload_configuration') }}" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> Cargar Archivo XML
+                </a>
+            </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-info-circle"></i> Funcionalidades</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="mb-2"><i class="fas fa-robot text-primary"></i> Simulación de drones regadores</li>
+                    <li class="mb-2"><i class="fas fa-route text-info"></i> Optimización automática de rutas</li>
+                    <li class="mb-2"><i class="fas fa-chart-line text-warning"></i> Análisis de eficiencia</li>
+                    <li class="mb-2"><i class="fas fa-file-alt text-success"></i> Reportes HTML detallados</li>
+                    <li class="mb-2"><i class="fas fa-project-diagram text-danger"></i> Visualización de TDAs</li>
+                    <li class="mb-0"><i class="fas fa-download text-secondary"></i> Exportación de resultados</li>
+                </ul>
+            </div>
+        </div>
+        
+        {% if greenhouse_count > 0 %}
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    <h5><i class="fas fa-chart-bar"></i> Estadísticas</h5>
+                </div>
+                <div class="card-body text-center">
+                    <div class="row">
+                        <div class="col-6">
+                            <h3 class="text-primary">{{ greenhouse_count }}</h3>
+                            <small class="text-muted">Invernaderos</small>
+                        </div>
+                        <div class="col-6">
+                            <h3 class="text-success">{{ stats.total_simulations if stats else 0 }}</h3>
+                            <small class="text-muted">Simulaciones</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

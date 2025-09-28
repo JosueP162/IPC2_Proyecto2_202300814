@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Cargar Configuración - GuateRiegos 2.0{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="fas fa-upload"></i> Cargar Configuración XML</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    Seleccione un archivo XML con la configuración de invernaderos, drones y planes de riego.
+                </div>
+                
+                <form method="post" enctype="multipart/form-data" id="uploadForm">
+                    <div class="mb-4">
+                        <label for="file" class="form-label">Archivo de Configuración XML</label>
+                        <input type="file" class="form-control form-control-lg" id="file" name="file" 
+                               accept=".xml" required>
+                        <div class="form-text">
+                            <i class="fas fa-file-code"></i> Solo se permiten archivos con extensión .xml (máximo 16MB)
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('home') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-upload"></i> Cargar Configuración
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-code"></i> Formato Esperado del Archivo XML</h5>
+            </div>
+            <div class="card-body">
+                <pre class="bg-light p-3 rounded"><code>&lt;?xml version="1.0"?&gt;
+&lt;configuracion&gt;
+    &lt;listaDrones&gt;
+        &lt;dron id="1" nombre="DR01"/&gt;
+        &lt;dron id="2" nombre="DR02"/&gt;
+        &lt;dron id="3" nombre="DR03"/&gt;
+    &lt;/listaDrones&gt;
+    
+    &lt;listaInvernaderos&gt;
+        &lt;invernadero nombre="Invernadero Ejemplo"&gt;
+            &lt;numeroHileras&gt;3&lt;/numeroHileras&gt;
+            &lt;plantasXhilera&gt;4&lt;/plantasXhilera&gt;
+            
+            &lt;listaPlantas&gt;
+                &lt;planta hilera="1" posicion="1" litrosAgua="1" gramosFertilizante="100"&gt;ciprés&lt;/planta&gt;
+                ...
+            &lt;/listaPlantas&gt;
+            
+            &lt;asignacionDrones&gt;
+                &lt;dron id="1" hilera="1"/&gt;
+                ...
+            &lt;/asignacionDrones&gt;
+            
+            &lt;planesRiego&gt;
+                &lt;plan nombre="Semana 1"&gt;H1-P2, H2-P1, H2-P2, H3-P3, H1-P4&lt;/plan&gt;
+                ...
+            &lt;/planesRiego&gt;
+        &lt;/invernadero&gt;
+    &lt;/listaInvernaderos&gt;
+&lt;/configuracion&gt;</code></pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    const fileInput = document.getElementById('file');
+    const file = fileInput.files[0];
+    
+    if (file) {
+        if (file.size > 16 * 1024 * 1024) {
+            e.preventDefault();
+            alert('El archivo es demasiado grande. Máximo permitido: 16MB');
+            return false;
+        }
+        
+        if (!file.name.toLowerCase().endsWith('.xml')) {
+            e.preventDefault();
+            alert('Solo se permiten archivos XML');
+            return false;
+        }
+    }
+});
+</script>
+{% endblock %}
+
+<!-- frontend/templates/greenhouses.html -->

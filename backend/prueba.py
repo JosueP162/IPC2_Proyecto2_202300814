@@ -54,7 +54,7 @@ def create_test_xml():
     with open('entrada_test.xml', 'w', encoding='utf-8') as f:
         f.write(xml_content)
     
-    print("✅ Archivo de prueba creado: entrada_test.xml")
+    print(" Archivo de prueba creado: entrada_test.xml")
 
 
 def test_data_structures():
@@ -64,10 +64,10 @@ def test_data_structures():
         from data_structures.queue import Queue
         from data_structures.list_of_lists import ListOfLists
         
-        print("🧪 === PRUEBA DE TDAs ===\n")
+        print(" === PRUEBA DE TDAs ===\n")
         
         # Probar SimpleList
-        print("📋 Probando SimpleList...")
+        print(" Probando SimpleList...")
         lista = SimpleList()
         lista.add("A")
         lista.add("B")
@@ -77,7 +77,7 @@ def test_data_structures():
         print(f"   Elemento 1: {lista.get(1)}")
         
         # Probar Queue
-        print("\n🔄 Probando Queue...")
+        print("\n Probando Queue...")
         cola = Queue()
         cola.enqueue("H1-P2")
         cola.enqueue("H2-P1") 
@@ -88,18 +88,18 @@ def test_data_structures():
         print(f"   Después dequeue: {cola.to_string()}")
         
         # Probar ListOfLists
-        print("\n📊 Probando ListOfLists...")
+        print("\n Probando ListOfLists...")
         timeline = ListOfLists()
         timeline.add_action_to_second(1, "DR01: Adelante")
         timeline.add_action_to_second(1, "DR02: Adelante")
         timeline.add_action_to_second(2, "DR01: Regar")
         print(f"   Timeline:\n{timeline.to_string()}")
         
-        print("✅ Pruebas de TDAs completadas")
+        print(" Pruebas de TDAs completadas")
         return True
         
     except ImportError as e:
-        print(f"❌ Error importando TDAs: {e}")
+        print(f" Error importando TDAs: {e}")
         return False
 
 
@@ -115,12 +115,12 @@ def test_basic_system():
         create_test_xml()
         
         # 2. Probar parser
-        print("📁 Probando parser XML...")
+        print(" Probando parser XML...")
         parser = XMLParser()
         config = parser.parse_configuration_file('entrada_test.xml')
         
         if config:
-            print("✅ Parser funcionando correctamente")
+            print("Parser funcionando correctamente")
             print(f"   Drones cargados: {config.all_drones.get_size()}")
             print(f"   Invernaderos cargados: {config.greenhouses.get_size()}")
             
@@ -138,11 +138,11 @@ def test_basic_system():
             
             return True
         else:
-            print("❌ Error en el parser")
+            print(" Error en el parser")
             return False
             
     except Exception as e:
-        print(f"❌ Error en prueba básica: {e}")
+        print(f" Error en prueba básica: {e}")
         import traceback
         traceback.print_exc()
         return False

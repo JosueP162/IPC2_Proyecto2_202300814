@@ -1,0 +1,44 @@
+digraph TDA_Estado_T1 {
+    rankdir=LR;
+    node [shape=box, style=filled, fontname="Arial"];
+    edge [fontname="Arial"];
+    
+    // Título
+    label="Estado de TDAs en Segundo 1";
+    labelloc=t;
+    fontsize=16;
+    fontname="Arial Bold";
+    
+    // Nodo principal del timeline
+    timeline [label="Timeline\nSegundo 1", fillcolor="lightblue", shape=ellipse];
+    
+    // Nodos de acciones
+    action0 [label="DR01\nAdelante (H1P1)", fillcolor="lightyellow"];
+    timeline -> action0;
+    action1 [label="DR02\nEsperar", fillcolor="lightcoral"];
+    timeline -> action1;
+    action2 [label="DR03\nEsperar", fillcolor="lightcoral"];
+    timeline -> action2;
+
+    // Cola del Plan de Riego
+    subgraph cluster_queue {
+        label="Cola de Tareas Restantes";
+        style=dashed;
+        color=blue;
+        queue0 [label="H1-P3", fillcolor="yellow"];
+        queue1 [label="H2-P4", fillcolor="yellow"];
+        queue0 -> queue1;
+        queue2 [label="H3-P1", fillcolor="yellow"];
+        queue1 -> queue2;
+    }
+
+    // Estadísticas Acumuladas
+    subgraph cluster_stats {
+        label="Estadísticas hasta T=1";
+        style=filled;
+        fillcolor=lightgreen;
+        DR01_stats [label="DR01\nAgua: 0L\nFertilizante: 0g\nPlantas: 0", shape=record];
+        DR02_stats [label="DR02\nAgua: 0L\nFertilizante: 0g\nPlantas: 0", shape=record];
+        DR03_stats [label="DR03\nAgua: 0L\nFertilizante: 0g\nPlantas: 0", shape=record];
+    }
+}

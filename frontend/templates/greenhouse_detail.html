@@ -1,0 +1,830 @@
+{% extends "base.html" %}
+
+{% block title %}{{ greenhouse.name }} - GuateRiegos 2.0{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-warehouse"></i> {{ greenhouse.name }}</h2>
+    <div>
+        <a href="{{ url_for('list_greenhouses') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-info-circle"></i> Información General</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Hileras:</strong> {{ greenhouse.rows }}</p>
+                <p><strong>Plantas por hilera:</strong> {{ greenhouse.plants_per_row }}</p>
+                <p><strong>Total plantas:</strong> {{ greenhouse.total_plants }}</p>
+                <p><strong>Drones asignados:</strong> {{ greenhouse.drones_count }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-list"></i> Planes de Riego</h5>
+            </div>
+            <div class="card-body">
+                {% for plan in greenhouse.plans %}
+                    <div class="plan-item border rounded p-3 mb-3">
+                        <h6>{{ plan.name }}</h6>
+                        <p class="mb-2"><strong>Secuencia:</strong> {{ plan.sequence }}</p>
+                        
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary simulate-btn" 
+                                    data-greenhouse="{{ greenhouse.name }}" 
+                                    data-plan="{{ plan.name }}">
+                                <i class="fas fa-play"></i> Simular
+                            </button>
+                            <button class="btn btn-sm btn-outline-info tda-btn" 
+                                    data-greenhouse="{{ greenhouse.name }}" 
+                                    data-plan="{{ plan.name }}">
+                                <i class="fas fa-project-diagram"></i> Ver TDA
+                            </button>
+                            
+                            <!-- Badge con ID único para poder actualizarlo -->
+                            <span id="badge-{{ greenhouse.name }}-{{ plan.name }}" 
+                                  class="badge ms-2 {% if plan.has_result %}bg-success{% else %}bg-warning{% endif %}">
+                                {% if plan.has_result %}Simulado{% else %}No simulado{% endif %}
+                            </span>
+                        </div>
+                        
+                        <!-- Resultados de simulación (se llena dinámicamente) -->
+                        <div id="results-{{ greenhouse.name }}-{{ plan.name }}" class="simulation-results mt-2" style="display: none;">
+                            <!-- Los resultados se cargarán aquí via JavaScript -->
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para mostrar resultados -->
+<div class="modal fade" id="resultsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Resultados de Simulación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalResultsContent">
+                <!-- Contenido dinámico -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Timeline Completo -->
+<div class="modal fade" id="timelineModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="timelineModalTitle">Timeline Completo de Simulación</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="badge bg-primary me-2">Movimiento</span>
+                        <span class="badge bg-success me-2">Riego</span>
+                        <span class="badge bg-secondary me-2">Espera</span>
+                        <span class="badge bg-danger me-2">FIN</span>
+                    </div>
+                    <div class="text-muted" id="timelineStats">
+                        <!-- Estadísticas del timeline -->
+                    </div>
+                </div>
+                <div id="fullTimelineContent" style="max-height: 60vh; overflow-y: auto;">
+                    <!-- Timeline completo se cargará aquí -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" onclick="exportTimeline()">
+                    <i class="fas fa-download"></i> Exportar Timeline
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Manejar clic en botones de simulación
+    document.querySelectorAll('.simulate-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const greenhouse = this.getAttribute('data-greenhouse');
+            const plan = this.getAttribute('data-plan');
+            simulatePlan(greenhouse, plan, this);
+        });
+    });
+    
+    // Manejar clic en botones de TDA
+    document.querySelectorAll('.tda-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const greenhouse = this.getAttribute('data-greenhouse');
+            const plan = this.getAttribute('data-plan');
+            const timeT = prompt('Ingrese el tiempo (segundos) para visualizar TDA:', '1');
+            if (timeT) {
+                showTDAGraph(greenhouse, plan, parseInt(timeT));
+            }
+        });
+    });
+});
+
+function simulatePlan(greenhouse, plan, button) {
+    // Mostrar loading
+    const originalHTML = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Simulando...';
+    button.disabled = true;
+    
+    fetch(`/simulate/${greenhouse}/${plan}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSimulationResults(greenhouse, plan, data);
+                updateSimulationState(greenhouse, plan, true);
+                updateButtonState(button, true);
+            } else {
+                alert('Error en la simulación: ' + (data.error || 'Error desconocido'));
+                resetButton(button, originalHTML);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error de conexión');
+            resetButton(button, originalHTML);
+        });
+}
+
+function showSimulationResults(greenhouse, plan, data) {
+    const resultsDiv = document.getElementById(`results-${greenhouse}-${plan}`);
+    const modalContent = document.getElementById('modalResultsContent');
+    
+    // Guardar datos del timeline globalmente para el timeline completo
+    currentTimelineData = data;
+    
+    // Crear timeline HTML
+    const timelineHTML = generateTimelineHTML(data.timeline, data.max_seconds);
+    
+    // Crear contenido HTML para los resultados
+    const resultsHTML = `
+        <h6>Resultados de Simulación - ${plan}</h6>
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h5 class="text-primary">${data.total_time}s</h5>
+                        <small>Tiempo total</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h5 class="text-success">${data.total_water}L</h5>
+                        <small>Agua utilizada</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h5 class="text-warning">${data.total_fertilizer}g</h5>
+                        <small>Fertilizante</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h5 class="text-info">${Object.keys(data.timeline).length}</h5>
+                        <small>Segundos con actividad</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Timeline de Simulación -->
+        <h6 class="mt-3">Timeline de la Simulación (primeros 10 segundos):</h6>
+        <div class="timeline-container mb-3">
+            ${timelineHTML}
+        </div>
+        
+        <div class="text-center mb-3">
+            <button class="btn btn-primary btn-sm" onclick="showFullTimeline('${greenhouse}', '${plan}')">
+                <i class="fas fa-list"></i> Ver Timeline Completo (${data.max_seconds} segundos)
+            </button>
+        </div>
+        
+        <h6 class="mt-3">Estadísticas por Dron:</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Dron</th>
+                        <th>Agua (L)</th>
+                        <th>Fertilizante (g)</th>
+                        <th>Plantas Regadas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.drone_statistics.map(stat => `
+                        <tr>
+                            <td><strong>${stat.name}</strong></td>
+                            <td>${stat.water}L</td>
+                            <td>${stat.fertilizer}g</td>
+                            <td>${stat.plants}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="mt-3">
+            <button class="btn btn-outline-info btn-sm" onclick="showTDAGraph('${greenhouse}', '${plan}', 1)">
+                <i class="fas fa-project-diagram"></i> Ver TDA
+            </button>
+            <button class="btn btn-outline-success btn-sm" onclick="generateReport('${greenhouse}', '${plan}')">
+                <i class="fas fa-download"></i> Descargar Reporte
+            </button>
+        </div>
+    `;
+    
+    // Actualizar ambos lugares
+    resultsDiv.innerHTML = resultsHTML;
+    resultsDiv.style.display = 'block';
+    
+    modalContent.innerHTML = resultsHTML;
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('resultsModal'));
+    modal.show();
+}
+
+// Función para generar el timeline HTML (primeros 10 segundos)
+function generateTimelineHTML(timeline, maxSeconds) {
+    if (!timeline || Object.keys(timeline).length === 0) {
+        return '<div class="alert alert-info">No hay datos de timeline disponibles</div>';
+    }
+    
+    let html = '';
+    const secondsToShow = Math.min(10, Object.keys(timeline).length);
+    
+    // Ordenar los segundos
+    const sortedSeconds = Object.keys(timeline).map(Number).sort((a, b) => a - b);
+    
+    for (let i = 0; i < Math.min(secondsToShow, sortedSeconds.length); i++) {
+        const second = sortedSeconds[i];
+        const actions = timeline[second];
+        
+        html += `
+            <div class="timeline-second card mb-2">
+                <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                    <strong>Segundo ${second}</strong>
+                    <span class="badge bg-dark">${actions.length} acciones</span>
+                </div>
+                <div class="card-body py-2">
+                    <div class="row">
+                        ${actions.map(action => `
+                            <div class="col-md-6 mb-1">
+                                <div class="action-item ${getActionColor(action.type)} p-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="drone-name fw-bold">${action.drone}</span>
+                                        <span class="action-badge ${getActionBadgeColor(action.type)}">
+                                            ${getActionTypeText(action.type)}
+                                        </span>
+                                    </div>
+                                    <div class="action-desc small mt-1">${action.action}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (sortedSeconds.length > secondsToShow) {
+        html += `
+            <div class="text-center mt-2">
+                <small class="text-muted">
+                    ... y ${sortedSeconds.length - secondsToShow} segundos más
+                </small>
+            </div>
+        `;
+    }
+    
+    return html;
+}
+
+// Funciones auxiliares para colores y textos
+function getActionColor(actionType) {
+    const colors = {
+        'move_forward': 'action-move-forward',
+        'move_backward': 'action-move-backward', 
+        'irrigate': 'action-irrigate',
+        'wait': 'action-wait',
+        'finish': 'action-finish'
+    };
+    return colors[actionType] || '';
+}
+
+function getActionTypeText(actionType) {
+    const texts = {
+        'move_forward': 'MOV',
+        'move_backward': 'MOV', 
+        'irrigate': 'REGAR',
+        'wait': 'ESPERA',
+        'finish': 'FIN'
+    };
+    return texts[actionType] || actionType;
+}
+
+function getActionBadgeColor(actionType) {
+    const colors = {
+        'move_forward': 'bg-primary',
+        'move_backward': 'bg-primary', 
+        'irrigate': 'bg-success',
+        'wait': 'bg-secondary',
+        'finish': 'bg-danger'
+    };
+    return colors[actionType] || 'bg-dark';
+}
+
+
+// Función para mostrar el timeline completo
+function showFullTimeline(greenhouse, plan) {
+    if (!currentTimelineData) {
+        alert('No hay datos de timeline disponibles');
+        return;
+    }
+    
+    // Actualizar título del modal
+    document.getElementById('timelineModalTitle').textContent = 
+        `Timeline Completo - ${greenhouse} - ${plan}`;
+    
+    // Generar contenido del timeline completo
+    const fullTimelineHTML = generateFullTimelineHTML(currentTimelineData.timeline);
+    document.getElementById('fullTimelineContent').innerHTML = fullTimelineHTML;
+    
+    // Actualizar estadísticas
+    updateTimelineStats(currentTimelineData);
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('timelineModal'));
+    modal.show();
+}
+
+// Función para generar el timeline completo
+function generateFullTimelineHTML(timeline) {
+    if (!timeline || Object.keys(timeline).length === 0) {
+        return '<div class="alert alert-info text-center">No hay datos de timeline disponibles</div>';
+    }
+    
+    let html = '';
+    
+    // Ordenar los segundos numéricamente
+    const sortedSeconds = Object.keys(timeline).map(Number).sort((a, b) => a - b);
+    
+    // Agrupar por rangos de 5 segundos para mejor organización
+    for (let i = 0; i < sortedSeconds.length; i += 5) {
+        const segmentSeconds = sortedSeconds.slice(i, i + 5);
+        
+        html += `<div class="timeline-segment mb-4">`;
+        html += `<h6 class="text-muted mb-3">Segundos ${segmentSeconds[0]} - ${segmentSeconds[segmentSeconds.length - 1]}</h6>`;
+        
+        for (const second of segmentSeconds) {
+            const actions = timeline[second];
+            
+            html += `
+                <div class="timeline-second card mb-2">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                        <strong>Segundo ${second}</strong>
+                        <span class="badge bg-dark">${actions.length} acciones</span>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="row">
+                            ${actions.map(action => `
+                                <div class="col-md-6 mb-1">
+                                    <div class="action-item ${getActionColor(action.type)} p-2">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="drone-name fw-bold">${action.drone}</span>
+                                            <span class="action-badge ${getActionBadgeColor(action.type)}">
+                                                ${getActionTypeText(action.type)}
+                                            </span>
+                                        </div>
+                                        <div class="action-desc small mt-1">${action.action}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += `</div>`;
+        
+        // Agregar separador visual cada 15 segundos
+        if ((i + 5) % 15 === 0 && (i + 5) < sortedSeconds.length) {
+            html += `<hr class="my-4">`;
+        }
+    }
+    
+    return html;
+}
+
+// Función para actualizar estadísticas del timeline
+function updateTimelineStats(data) {
+    const statsDiv = document.getElementById('timelineStats');
+    const totalSeconds = data.max_seconds;
+    const activeSeconds = Object.keys(data.timeline).length;
+    
+    // Contar tipos de acciones
+    let moveCount = 0, irrigateCount = 0, waitCount = 0, finishCount = 0;
+    
+    Object.values(data.timeline).forEach(actions => {
+        actions.forEach(action => {
+            switch(action.type) {
+                case 'move_forward':
+                case 'move_backward':
+                    moveCount++;
+                    break;
+                case 'irrigate':
+                    irrigateCount++;
+                    break;
+                case 'wait':
+                    waitCount++;
+                    break;
+                case 'finish':
+                    finishCount++;
+                    break;
+            }
+        });
+    });
+    
+    statsDiv.innerHTML = `
+        <small>
+            <strong>${totalSeconds}s</strong> totales | 
+            <strong>${activeSeconds}s</strong> con actividad |
+            <strong>${moveCount}</strong> movimientos |
+            <strong>${irrigateCount}</strong> riegos
+        </small>
+    `;
+}
+
+// Función para exportar timeline
+function exportTimeline() {
+    if (!currentTimelineData) return;
+    
+    // Crear contenido texto para exportar
+    let exportContent = `TIMELINE DE SIMULACIÓN\n`;
+    exportContent += `=====================\n\n`;
+    
+    const sortedSeconds = Object.keys(currentTimelineData.timeline).map(Number).sort((a, b) => a - b);
+    
+    for (const second of sortedSeconds) {
+        const actions = currentTimelineData.timeline[second];
+        exportContent += `Segundo ${second}:\n`;
+        
+        actions.forEach(action => {
+            exportContent += `  ${action.drone}: ${action.action}\n`;
+        });
+        
+        exportContent += `\n`;
+    }
+    
+    // Crear y descargar archivo
+    const blob = new Blob([exportContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `timeline_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// Función para generar reporte (placeholder)
+function generateReport(greenhouse, plan) {
+    alert(`Generando reporte para ${greenhouse} - ${plan}`);
+    // window.open(`/report/${greenhouse}/${plan}`, '_blank');
+}
+
+function generateTimelineHTML(timeline, maxSeconds) {
+    if (!timeline || Object.keys(timeline).length === 0) {
+        return '<div class="alert alert-info">No hay datos de timeline disponibles</div>';
+    }
+    
+    let html = '';
+    const secondsToShow = Math.min(10, Object.keys(timeline).length); // Mostrar primeros 10 segundos
+    
+    // Ordenar los segundos
+    const sortedSeconds = Object.keys(timeline).map(Number).sort((a, b) => a - b);
+    
+    for (let i = 0; i < Math.min(secondsToShow, sortedSeconds.length); i++) {
+        const second = sortedSeconds[i];
+        const actions = timeline[second];
+        
+        html += `
+            <div class="timeline-second card mb-2">
+                <div class="card-header py-2">
+                    <strong>Segundo ${second}:</strong>
+                </div>
+                <div class="card-body py-2">
+                    ${actions.map(action => `
+                        <div class="action-item ${getActionColor(action.type)}">
+                            <span class="drone-name">${action.drone}:</span>
+                            <span class="action-desc">${action.action}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (sortedSeconds.length > secondsToShow) {
+        html += `
+            <div class="text-center mt-2">
+                <small class="text-muted">
+                    ... y ${sortedSeconds.length - secondsToShow} segundos más
+                </small>
+            </div>
+        `;
+    }
+    
+    return html;
+}
+
+function getActionColor(actionType) {
+    const colors = {
+        'move_forward': 'action-move-forward',
+        'move_backward': 'action-move-backward', 
+        'irrigate': 'action-irrigate',
+        'wait': 'action-wait',
+        'finish': 'action-finish'
+    };
+    return colors[actionType] || '';
+}
+
+// Variable global para almacenar los datos del timeline
+let currentTimelineData = null;
+
+function showFullTimeline(greenhouse, plan) {
+    if (!currentTimelineData) {
+        alert('No hay datos de timeline disponibles');
+        return;
+    }
+    
+    // Actualizar título del modal
+    document.getElementById('timelineModalTitle').textContent = 
+        `Timeline Completo - ${greenhouse} - ${plan}`;
+    
+    // Generar contenido del timeline completo
+    const fullTimelineHTML = generateFullTimelineHTML(currentTimelineData.timeline);
+    document.getElementById('fullTimelineContent').innerHTML = fullTimelineHTML;
+    
+    // Actualizar estadísticas
+    updateTimelineStats(currentTimelineData);
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('timelineModal'));
+    modal.show();
+}
+
+function generateFullTimelineHTML(timeline) {
+    if (!timeline || Object.keys(timeline).length === 0) {
+        return '<div class="alert alert-info text-center">No hay datos de timeline disponibles</div>';
+    }
+    
+    let html = '';
+    
+    // Ordenar los segundos numéricamente
+    const sortedSeconds = Object.keys(timeline).map(Number).sort((a, b) => a - b);
+    
+    // Agrupar por rangos de 5 segundos para mejor organización
+    for (let i = 0; i < sortedSeconds.length; i += 5) {
+        const segmentSeconds = sortedSeconds.slice(i, i + 5);
+        
+        html += `<div class="timeline-segment mb-4">`;
+        html += `<h6 class="text-muted mb-3">Segundos ${segmentSeconds[0]} - ${segmentSeconds[segmentSeconds.length - 1]}</h6>`;
+        
+        for (const second of segmentSeconds) {
+            const actions = timeline[second];
+            
+            html += `
+                <div class="timeline-second card mb-2">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                        <strong>Segundo ${second}</strong>
+                        <span class="badge bg-dark">${actions.length} acciones</span>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="row">
+                            ${actions.map(action => `
+                                <div class="col-md-6 mb-1">
+                                    <div class="action-item ${getActionColor(action.type)} p-2">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="drone-name fw-bold">${action.drone}</span>
+                                            <span class="action-badge ${getActionBadgeColor(action.type)}">
+                                                ${getActionTypeText(action.type)}
+                                            </span>
+                                        </div>
+                                        <div class="action-desc small mt-1">${action.action}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += `</div>`;
+        
+        // Agregar separador visual cada 15 segundos
+        if ((i + 5) % 15 === 0 && (i + 5) < sortedSeconds.length) {
+            html += `<hr class="my-4">`;
+        }
+    }
+    
+    return html;
+}
+
+function updateTimelineStats(data) {
+    const statsDiv = document.getElementById('timelineStats');
+    const totalSeconds = data.max_seconds;
+    const activeSeconds = Object.keys(data.timeline).length;
+    
+    // Contar tipos de acciones
+    let moveCount = 0, irrigateCount = 0, waitCount = 0, finishCount = 0;
+    
+    Object.values(data.timeline).forEach(actions => {
+        actions.forEach(action => {
+            switch(action.type) {
+                case 'move_forward':
+                case 'move_backward':
+                    moveCount++;
+                    break;
+                case 'irrigate':
+                    irrigateCount++;
+                    break;
+                case 'wait':
+                    waitCount++;
+                    break;
+                case 'finish':
+                    finishCount++;
+                    break;
+            }
+        });
+    });
+    
+    statsDiv.innerHTML = `
+        <small>
+            <strong>${totalSeconds}s</strong> totales | 
+            <strong>${activeSeconds}s</strong> con actividad |
+            <strong>${moveCount}</strong> movimientos |
+            <strong>${irrigateCount}</strong> riegos
+        </small>
+    `;
+}
+
+function getActionTypeText(actionType) {
+    const texts = {
+        'move_forward': 'MOV',
+        'move_backward': 'MOV', 
+        'irrigate': 'REGAR',
+        'wait': 'ESPERA',
+        'finish': 'FIN'
+    };
+    return texts[actionType] || actionType;
+}
+
+function getActionBadgeColor(actionType) {
+    const colors = {
+        'move_forward': 'bg-primary',
+        'move_backward': 'bg-primary', 
+        'irrigate': 'bg-success',
+        'wait': 'bg-secondary',
+        'finish': 'bg-danger'
+    };
+    return colors[actionType] || 'bg-dark';
+}
+
+function exportTimeline() {
+    if (!currentTimelineData) return;
+    
+    // Crear contenido texto para exportar
+    let exportContent = `TIMELINE DE SIMULACIÓN\n`;
+    exportContent += `=====================\n\n`;
+    
+    const sortedSeconds = Object.keys(currentTimelineData.timeline).map(Number).sort((a, b) => a - b);
+    
+    for (const second of sortedSeconds) {
+        const actions = currentTimelineData.timeline[second];
+        exportContent += `Segundo ${second}:\n`;
+        
+        actions.forEach(action => {
+            exportContent += `  ${action.drone}: ${action.action}\n`;
+        });
+        
+        exportContent += `\n`;
+    }
+    
+    // Crear y descargar archivo
+    const blob = new Blob([exportContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `timeline_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function updateSimulationState(greenhouse, plan, simulated) {
+    // Actualizar el badge
+    const badge = document.getElementById(`badge-${greenhouse}-${plan}`);
+    if (badge) {
+        if (simulated) {
+            badge.className = 'badge ms-2 bg-success';
+            badge.textContent = 'Simulado';
+        } else {
+            badge.className = 'badge ms-2 bg-warning';
+            badge.textContent = 'No simulado';
+        }
+    }
+}
+
+function updateButtonState(button, success) {
+    if (success) {
+        button.innerHTML = '<i class="fas fa-check"></i> Simulado';
+        button.classList.remove('btn-outline-primary');
+        button.classList.add('btn-success');
+        button.disabled = false;
+    }
+}
+
+function resetButton(button, originalHTML) {
+    button.innerHTML = originalHTML;
+    button.disabled = false;
+}
+
+function showTDAGraph(greenhouse, plan, timeT) {
+    const time = prompt('Ingrese el tiempo (segundos) para visualizar TDA:', timeT || '1');
+    if (time) {
+        // Cerrar modal actual
+        const modal = bootstrap.Modal.getInstance(document.getElementById('resultsModal'));
+        if (modal) modal.hide();
+        
+        // Abrir TDA en nueva pestaña después de un breve delay
+        setTimeout(() => {
+            window.open(`/tda_graph/${greenhouse}/${plan}/${time}`, '_blank');
+        }, 300);
+    }
+}
+
+function generateReport(greenhouse, plan) {
+    // Aquí puedes implementar la descarga de reportes
+    alert(`Generando reporte para ${greenhouse} - ${plan}`);
+    // window.open(`/report/${greenhouse}/${plan}`, '_blank');
+}
+</script>
+
+<style>
+.simulation-results {
+    border-left: 4px solid #28a745;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 0 5px 5px 0;
+    margin-top: 10px;
+}
+
+.plan-item {
+    transition: all 0.3s ease;
+}
+
+.plan-item:hover {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.badge {
+    font-size: 0.8em;
+    padding: 0.4em 0.6em;
+}
+</style>
+{% endblock %}

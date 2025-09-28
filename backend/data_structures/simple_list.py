@@ -73,3 +73,4 @@ class SimpleList:
             current = current.next
         result += "]"
         return result
+    
